@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en" class="dark h-full">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Taxi Radar — nearby registered taxis, drivers, and call centers. You choose how to contact them." />
+  <title>Taxi Radar</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,400;0,14..32,500;0,14..32,600;0,14..32,700&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          fontFamily: { sans: ["Inter", "system-ui", "sans-serif"] },
+        },
+      },
+    };
+  </script>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body class="h-full min-h-dvh bg-zinc-950 text-zinc-100 antialiased">
+  <a href="#nearby-drivers-heading" class="sr-only focus:not-sr-only focus:absolute focus:left-3 focus:top-3 focus:z-[60] focus:rounded-lg focus:bg-zinc-100 focus:px-3 focus:py-2 focus:text-zinc-900">Skip to drivers</a>
+  <a href="#taxi-companies-heading" class="sr-only focus:not-sr-only focus:absolute focus:left-3 focus:top-14 focus:z-[60] focus:rounded-lg focus:bg-zinc-100 focus:px-3 focus:py-2 focus:text-zinc-900">Skip to companies &amp; call centers</a>
+
+  <div id="toast" class="toast pointer-events-none fixed bottom-24 left-1/2 z-[70] hidden max-w-sm -translate-x-1/2 rounded-xl border border-zinc-700 bg-zinc-900 px-4 py-3 text-center text-sm text-zinc-200 shadow-lg" role="status"></div>
+
+  <div id="loadingOverlay" class="fixed inset-0 z-40 hidden items-center justify-center bg-zinc-950/92 px-6" aria-hidden="true" aria-busy="true">
+    <div class="loading-radar mb-6" aria-hidden="true">
+      <div class="loading-radar__ring"></div>
+      <div class="loading-radar__ring"></div>
+      <div class="loading-radar__pulse"></div>
+    </div>
+    <p class="text-center text-base font-medium text-zinc-200">Scanning nearby taxi options…</p>
+    <p class="mt-2 max-w-xs text-center text-xs text-zinc-500">Showing visible listings in your area. Not a dispatch service.</p>
+  </div>
+
+  <div id="driverModal" class="modal-backdrop fixed inset-0 z-50 hidden" aria-hidden="true">
+    <div class="absolute inset-0 z-0 bg-black/65" data-close-modal></div>
+    <div
+      id="driverModalSheet"
+      class="modal-sheet absolute inset-x-0 bottom-0 z-10 max-h-[88dvh] overflow-y-auto rounded-t-3xl border border-zinc-800 bg-zinc-900 px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-3 shadow-2xl"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="driverModalTitle"
+    >
+      <div class="mx-auto mb-3 h-1 w-10 shrink-0 rounded-full bg-zinc-700" aria-hidden="true"></div>
+      <button type="button" class="absolute right-4 top-3 rounded-lg border border-zinc-700 px-2 py-1 text-xs text-zinc-400 hover:bg-zinc-800" data-close-modal aria-label="Close">✕</button>
+      <div id="driverModalBody" class="pt-6"></div>
+    </div>
+  </div>
+
+  <div class="mx-auto min-h-dvh max-w-md px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-safe">
+    <header class="pt-2">
+      <h1 class="text-2xl font-semibold tracking-tight text-zinc-50">Taxi Radar</h1>
+      <p class="mt-1 text-sm text-zinc-400">Nearby registered taxis, drivers, and call centers. You choose who to contact.</p>
+    </header>
+
+    <section class="mt-5 rounded-2xl border border-zinc-800 bg-zinc-900 p-4" aria-labelledby="area-label">
+      <p class="text-xs font-medium uppercase tracking-wide text-zinc-500">Visible area</p>
+      <p id="areaLabel" class="mt-1 text-base font-semibold text-zinc-100">Helsinki center (sample)</p>
+      <div class="mt-3 flex flex-wrap gap-3 text-sm text-zinc-400">
+        <span><span id="countDrivers" class="font-semibold tabular-nums text-zinc-200">0</span> drivers nearby</span>
+        <span class="text-zinc-700">·</span>
+        <span><span id="countOperators" class="font-semibold tabular-nums text-zinc-200">0</span> companies &amp; centers</span>
+      </div>
+      <p class="mt-3 text-xs leading-relaxed text-zinc-500">
+        Paid placements are labeled <span class="text-amber-400/90">Promoted</span>. Listings are not ranked as “better” or “worse” — distance and filters help you browse.
+      </p>
+      <div class="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
+        <button type="button" id="btnLocate" class="touch-btn rounded-2xl border border-zinc-600 bg-zinc-100 py-3.5 text-sm font-semibold text-zinc-900 hover:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:ring-offset-2 focus:ring-offset-zinc-950">
+          Use my location
+        </button>
+        <button type="button" id="btnSearchArea" class="touch-btn rounded-2xl border border-zinc-700 bg-zinc-800/80 py-3.5 text-sm font-semibold text-zinc-100 hover:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-zinc-500 focus:ring-offset-2 focus:ring-offset-zinc-950">
+          Search area
+        </button>
+      </div>
+      <p id="geoNotice" class="mt-3 hidden text-xs leading-relaxed text-zinc-500"></p>
+    </section>
+
+    <div id="searchPanel" class="mt-3 hidden rounded-2xl border border-zinc-800 bg-zinc-900 p-4" role="dialog" aria-modal="true" aria-labelledby="search-title">
+      <h3 id="search-title" class="text-sm font-semibold text-zinc-200">Search area</h3>
+      <label for="searchInput" class="mt-3 block text-xs font-medium text-zinc-500">Area label (sample)</label>
+      <input id="searchInput" type="text" autocomplete="off" placeholder="e.g. Kallio, Turku harbor" class="mt-1.5 w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-3 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500" />
+      <div class="mt-3 flex gap-2">
+        <button type="button" id="searchApply" class="touch-btn flex-1 rounded-xl bg-zinc-100 py-3 text-sm font-semibold text-zinc-900 hover:bg-white">Apply</button>
+        <button type="button" id="searchCancel" class="rounded-xl border border-zinc-700 px-4 py-3 text-sm font-medium text-zinc-300 hover:bg-zinc-800">Cancel</button>
+      </div>
+    </div>
+
+    <section class="mt-6" aria-labelledby="recommended-heading">
+      <h2 id="recommended-heading" class="text-sm font-semibold text-zinc-200">Recommended now</h2>
+      <p class="mt-1 text-[0.7rem] leading-relaxed text-zinc-500">A helper row — not a gatekeeper. Paid slots are marked.</p>
+      <div id="recommended" class="mt-3 flex flex-col gap-3"></div>
+    </section>
+
+    <section id="nearby-drivers-section" class="mt-8" aria-labelledby="nearby-drivers-heading">
+      <h2 id="nearby-drivers-heading" class="text-sm font-semibold text-zinc-200">All nearby drivers</h2>
+      <p class="mt-1 text-[0.7rem] leading-relaxed text-zinc-500">Every visible independent driver nearby — not only this helper row.</p>
+      <div id="emptyDrivers" class="mt-3 hidden rounded-2xl border border-zinc-800 bg-zinc-900 p-5 text-center">
+        <p class="text-sm leading-relaxed text-zinc-300">No registered taxis visible nearby yet.</p>
+        <p class="mt-2 text-xs leading-relaxed text-zinc-500">Try call centers or expand the area.</p>
+        <div class="mt-4 flex flex-col gap-2 sm:flex-row sm:justify-center">
+          <button type="button" id="btnShowCallCenters" class="touch-btn rounded-xl border border-zinc-600 bg-zinc-800 py-3 text-sm font-semibold text-zinc-100 hover:bg-zinc-800/90">Show call centers</button>
+          <button type="button" id="btnExpandRadius" class="touch-btn rounded-xl bg-zinc-100 py-3 text-sm font-semibold text-zinc-900 hover:bg-white">Expand radius</button>
+        </div>
+      </div>
+      <div id="allNearbyDrivers" class="mt-3 flex flex-col gap-2"></div>
+    </section>
+
+    <section class="mt-8" aria-labelledby="taxi-companies-heading">
+      <h2 id="taxi-companies-heading" class="text-sm font-semibold text-zinc-200">Taxi companies &amp; call centers</h2>
+      <p class="mt-1 text-[0.7rem] leading-relaxed text-zinc-500">Existing phone booking lines and fleets — not only individual drivers.</p>
+      <div id="companiesList" class="mt-3 flex flex-col gap-3"></div>
+    </section>
+
+    <section class="mt-8 rounded-2xl border border-zinc-800 bg-zinc-900 p-5" aria-labelledby="share-heading">
+      <h2 id="share-heading" class="text-sm font-semibold text-zinc-200">Help others find taxis faster</h2>
+      <p class="mt-2 text-sm leading-relaxed text-zinc-400">Share this local taxi radar with friends.</p>
+      <button type="button" id="btnShare" class="touch-btn mt-4 w-full rounded-2xl border border-zinc-600 bg-zinc-800 py-3.5 text-sm font-semibold text-zinc-100 hover:bg-zinc-800/90 focus:outline-none focus:ring-2 focus:ring-zinc-500 focus:ring-offset-2 focus:ring-offset-zinc-950">
+        Share
+      </button>
+    </section>
+
+    <footer class="mt-10 border-t border-zinc-800 pt-6 text-center text-[0.7rem] leading-relaxed text-zinc-600">
+      <p>Information only. Fares and pickup are between you and the provider. Sample data for layout — connect a registry feed for production.</p>
+      <p class="mt-2">Add <code class="rounded bg-zinc-900 px-1 text-zinc-500">?empty=1</code> to preview the no-drivers state.</p>
+    </footer>
+  </div>
+
+  <script src="app.js" defer></script>
+</body>
+</html>
